@@ -71,7 +71,7 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
         linux_pipe = ''
         
     # docker build
-    cmd = f'set -eo pipefail; docker pull {pull_args} `cat $SRCS_FQN` || docker buildx build {build_args} --cache-from type=gha --cache-to type=gha,mode=max --progress=plain -t `cat $SRCS_FQN` -f $(basename $SRCS_DOCKERFILE) - < $(out_location {tarball}) {linux_pipe}'
+    cmd = f'set -eo pipefail; docker pull {pull_args} `cat $SRCS_FQN` || docker buildx build {build_args} --cache-from type=gha --cache-to type=gha,mode=max --progress=plain --push -t `cat $SRCS_FQN` -f $(basename $SRCS_DOCKERFILE) - < $(out_location {tarball}) {linux_pipe}'
     if base_image:
         cmd = f'./$(out_location {base_image}) && {cmd}'
     docker_build = sh_cmd(
@@ -113,7 +113,7 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
     # docker push
     sh_cmd(
         name = name + '_push',
-        cmd = f'./$(out_location {docker_build}) && docker push `cat $SRCS`',
+        cmd = f'./$(out_location {docker_build}) && echo Image pushed: `cat $SRCS`',
         srcs = [fqn],
         deps = [docker_build],
         visibility = visibility,
