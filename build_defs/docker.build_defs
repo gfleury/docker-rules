@@ -31,6 +31,7 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
     image = image or name
     if base_image:
         base_image = canonicalise(base_image)
+        no_subrepo_base_image = base_image.replace("///linux_arm64", "").replace("///linux_amd64", "")    
     if not repo:
         repo = CONFIG.DOCKER.DEFAULT_DOCKER_REPO
     labels += ['docker_image=' + image, 'docker']
@@ -40,7 +41,7 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
         name = name,
         srcs = srcs,
         dockerfile = dockerfile,
-        base_image = base_image,
+        base_image = no_subrepo_base_image if base_image else None,
         pass_env = pass_env,
         test_only = test_only,
     )
