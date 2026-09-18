@@ -27,6 +27,7 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
       visibility: Visibility of this rule.
       build_args: Any arguments to provide to 'docker build'
       container_args: Any arguments to provide to the container's entrypoint during 'docker run'
+      pull_args: Any arguments to provide to 'docker pull' (used by _load and _save)
     """
     image = image or name
     if base_image:
@@ -71,8 +72,14 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
     else:
         linux_pipe = ''
         
-    # docker build
-    cmd = f'set -eo pipefail; docker pull {pull_args} `cat $SRCS_FQN` || docker buildx build {build_args} --cache-from type=gha --cache-to type=gha,mode=max --progress=plain --push -t `cat $SRCS_FQN` -f $(basename $SRCS_DOCKERFILE) - < $(out_location {tarball}) {linux_pipe}'
+    # docker build. The registry is the source of truth: the tag is a hash of
+    # the build context, so if it already exists there is nothing to build.
+    # `manifest inspect` only fetches the manifest; `docker pull` used to
+    # download the whole image (tens of seconds per image in CI) just to
+    # answer the same question, and buildx with the docker-container driver
+    # cannot use the local daemon's copy anyway. Targets that need the image
+    # in the local daemon (_load, _save) pull it explicitly.
+    cmd = f'set -eo pipefail; docker manifest inspect `cat $SRCS_FQN` > /dev/null 2>&1 || docker buildx build {build_args} --cache-from type=gha --cache-to type=gha,mode=max --progress=plain --push -t `cat $SRCS_FQN` -f $(basename $SRCS_DOCKERFILE) - < $(out_location {tarball}) {linux_pipe}'
     if base_image:
         cmd = f'./$(out_location {base_image}) && {cmd}'
     docker_build = sh_cmd(
@@ -92,12 +99,15 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
         labels = labels + ['docker-build'],
     )
 
-    # For compat reasons _load is an alias for the main build target.
-    filegroup(
+    # docker load: the image built (or already published) into the local daemon.
+    sh_cmd(
         name = name + '_load',
-        srcs = [docker_build],
-        binary = True,
+        cmd = f'./$(out_location {docker_build}) && docker pull {pull_args} `cat $SRCS`',
+        srcs = [fqn],
+        deps = [docker_build],
+        visibility = visibility,
         test_only = test_only,
+        labels = labels + ["docker-load"],
     )
 
     # docker run
@@ -138,7 +148,7 @@ def docker_image(name:str, srcs:list=[], image:str=None, version:str='',
     # docker image save
     sh_cmd(
         name = name + '_save',
-        cmd = f'./$(out_location {docker_build}) && docker image save `cat $SRCS` -o $(out_location {tar})',
+        cmd = f'./$(out_location {docker_build}) && docker pull {pull_args} `cat $SRCS` && docker image save `cat $SRCS` -o $(out_location {tar})',
         srcs = [fqn],
         deps = [docker_build, tar],
         visibility = visibility,
