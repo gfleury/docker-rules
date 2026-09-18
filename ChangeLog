@@ -1,3 +1,9 @@
+Version 0.2.0
+-------------
+    * The build script checks the registry with `docker manifest inspect` instead of
+      `docker pull` to decide whether the tag already exists; `_load` and `_save`
+      pull explicitly.
+
 Version 0.1.0
 -------------
     * Initial release

@@ -40,15 +40,19 @@ ENTRYPOINT [ "/hello_service.pex" ]
 There are a number of runnable scripts that you can use to build and push these images. These scripts will ensure that
 the images are built in the correct order:
 
-To `docker build` the image, including it's base image:
+To `docker build` and push the image, including its base image:
 
 ```
 $ plz run //service/docker:image
 ```
 
+The image tag is a hash of the build context, so the script first asks the registry
+(`docker manifest inspect`) whether that tag already exists and only builds when it does not.
+Nothing is pulled into the local daemon by this target.
+
 There are also other hidden targets that can be useful:
 
-- `:{name}_load` - Alias for the `docker build` script above, building the image into the host machines docker
+- `:{name}_load` - Runs the `docker build` script above, then `docker pull`s the image into the host machine's docker
 - `:{name}_run` - Runs `docker run -it` for the image
 - `:{name}_push` - Runs `docker push` for the image 
 - `:{name}_save` - Runs `docker image save`, saving the image into `plz-out/gen/{package_path}`
